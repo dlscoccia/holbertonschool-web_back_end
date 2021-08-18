@@ -6,13 +6,15 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
 from user import Base, User
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.exc import InvalidRequestError
 
 
 class DB:
     """DB class"""
     def __init__(self) -> None:
         """Initialize a new DB instance"""
-        self._engine = create_engine("sqlite:///a.db", echo=True)
+        self._engine = create_engine("sqlite:///a.db", echo=False)
         Base.metadata.drop_all(self._engine)
         Base.metadata.create_all(self._engine)
         self.__session = None
@@ -31,3 +33,52 @@ class DB:
         self._session.add(new_user)
         self._session.commit()
         return new_user
+
+    def find_user_by(self, **kwargs) -> User:
+        """ Returns first row found in users table based on keyword args """
+
+        """ Handle invalid requests """
+        if not kwargs:
+            raise InvalidRequestError
+
+        users_columns = [
+            'id',
+            'email',
+            'hashed_password',
+            'session_id',
+            'reset_token'
+            ]
+
+        for arg in kwargs:
+            if arg not in users_columns:
+                raise InvalidRequestError
+
+        """ Search table for user """
+
+        search_user = self._session.query(User).filter_by(**kwargs).first()
+
+        if search_user:
+            return search_user
+        else:
+            raise NoResultFound
+
+    def update_user(self, user_id: int, **kwargs) -> None:
+        """ Finds user record and updates attributes """
+
+        user_to_update = self.find_user_by(id=user_id)
+
+        users_columns = [
+            'id',
+            'email',
+            'hashed_password',
+            'session_id',
+            'reset_token'
+            ]
+
+        for k, v in kwargs.items():
+            if k in users_columns:
+                setattr(user_to_update, k, v)
+            else:
+                raise ValueError
+
+        self._session.commit()
